@@ -41,6 +41,15 @@ app.use('/api/audit',     require('./routes/audit'));
 app.use('/api/tenants',   require('./routes/tenants'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
+app.get('/test-db', async (req, res) => {
+  try {
+    const db = require('./db');
+    const result = await db.query('SELECT COUNT(*) FROM tenants');
+    res.json({ tenants_count: result.rows[0].count, db: 'connected' });
+  } catch(err) {
+    res.json({ error: err.message });
+  }
+});
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err.message);
