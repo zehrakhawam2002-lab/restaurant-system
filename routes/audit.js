@@ -1,18 +1,22 @@
-const router = require('express').Router();
-const db     = require('../db');
-const { verifyToken, withTenant } = require('../middleware/auth');
+const db = require('../db');
 
-router.use(verifyToken);
-
-router.get('/', async (req, res, next) => {
+const logAudit = async (req, action, details = {}) => {
   try {
-    const tid = withTenant(req);
-    const { rows } = await db.query(
-      'SELECT * FROM audit_logs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 100',
-      [tid]
-    );
-    res.json({ logs: rows });
-  } catch(err) { next(err); }
-});
+    await db.query(`
+      INSERT INTO audit_logs (user_id, user_name, role, action, details, ip, user_agent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      req.user?.id    || null,
+      req.user?.name  || 'anonymous',
+      req.user?.role  || null,
+      action,
+      JSON.stringify(details),
+      req.ip,
+      req.headers['user-agent']?.substring(0, 200) || '',
+    ]);
+  } catch (err) {
+    console.error('[AUDIT ERROR]', err.message);
+  }
+};
 
-module.exports = router;
+module.exports = { logAudit };
