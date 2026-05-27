@@ -17,20 +17,19 @@ router.post('/login', async (req, res, next) => {
     if(!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     if(tenant_code) {
-      // ── Tenant login ──
-      const { rows: tenants } = await db.query(
+      const tenantResult = await db.query(
         "SELECT * FROM tenants WHERE UPPER(code) = UPPER($1) AND is_active = true",
         [tenant_code]
       );
-      if(!tenants.length) return res.status(401).json({ error: 'Restaurant code not found' });
-      const tenant = tenants[0];
+      if(!tenantResult.rows.length) return res.status(401).json({ error: 'Restaurant code not found' });
+      const tenant = tenantResult.rows[0];
 
-      const { rows } = await db.query(
+      const staffResult = await db.query(
         "SELECT * FROM staff WHERE email=$1 AND tenant_id=$2 AND is_active=true",
         [email, tenant.id]
       );
-      if(!rows.length) return res.status(401).json({ error: 'Invalid email or password' });
-      const user = rows[0];
+      if(!staffResult.rows.length) return res.status(401).json({ error: 'Invalid email or password' });
+      const user = staffResult.rows[0];
       const match = await bcrypt.compare(password, user.password_hash);
       if(!match) return res.status(401).json({ error: 'Invalid email or password' });
 
@@ -40,15 +39,13 @@ router.post('/login', async (req, res, next) => {
         user: { id: user.id, name: user.name, email: user.email, role: user.role,
           tenant_id: tenant.id, tenant_name: tenant.name, tenant_code: tenant.code }
       });
-
     } else {
-      // ── No tenant code — find user by email across all tenants ──
-      const { rows } = await db.query(
+      const staffResult = await db.query(
         "SELECT s.*, t.name as tenant_name, t.code as tenant_code FROM staff s LEFT JOIN tenants t ON t.id = s.tenant_id WHERE s.email=$1 AND s.is_active=true LIMIT 1",
         [email]
       );
-      if(!rows.length) return res.status(401).json({ error: 'Invalid email or password' });
-      const user = rows[0];
+      if(!staffResult.rows.length) return res.status(401).json({ error: 'Invalid email or password' });
+      const user = staffResult.rows[0];
       const match = await bcrypt.compare(password, user.password_hash);
       if(!match) return res.status(401).json({ error: 'Invalid email or password' });
 
